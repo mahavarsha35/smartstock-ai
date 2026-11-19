@@ -1,0 +1,6 @@
+{
+  "name": "SmartStock AI — Inventory Atelier",
+  "description": "Heritage Indian retail inventory intelligence, automated restock ledger, supplier governance, and bilingual AI voice concierge.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

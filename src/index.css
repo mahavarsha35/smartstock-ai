@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tertiary-fixed-dim: #bfcab0;
+  --color-on-tertiary-fixed-variant: #404a36;
+  --color-tertiary-fixed: #dbe7cb;
+  --color-surface-variant: #e5e2dc;
+  --color-on-primary-fixed: #231a13;
+  --color-on-tertiary-container: #939e85;
+  --color-tertiary-container: #2b3522;
+  --color-on-surface-variant: #4e453f;
+  --color-on-primary: #ffffff;
+  --color-on-tertiary-fixed: #151e0d;
+  --color-outline-variant: #d1c4bc;
+  --color-primary-fixed-dim: #d5c3b8;
+  --color-on-primary-fixed-variant: #51443c;
+  --color-surface: #fcf9f3;
+  --color-outline: #7f756f;
+  --color-surface-bright: #fcf9f3;
+  --color-on-secondary-container: #776138;
+  --color-on-surface: #1c1c18;
+  --color-primary-container: #3b3028;
+  --color-on-secondary: #ffffff;
+  --color-primary-fixed: #f2dfd3;
+  --color-error-container: #ffdad6;
+  --color-surface-tint: #695c53;
+  --color-on-tertiary: #ffffff;
+  --color-primary: #251b14;
+  --color-tertiary: #17200f;
+  --color-surface-container-low: #f6f3ed;
+  --color-surface-container: #f0eee8;
+  --color-background: #fcf9f3;
+  --color-surface-dim: #dcdad4;
+  --color-surface-container-high: #ebe8e2;
+  --color-inverse-primary: #d5c3b8;
+  --color-on-error-container: #93000a;
+  --color-surface-container-highest: #e5e2dc;
+  --color-error: #ba1a1a;
+  --color-inverse-surface: #31312d;
+  --color-inverse-on-surface: #f3f0ea;
+  --color-on-error: #ffffff;
+  --color-on-background: #1c1c18;
+  --color-on-primary-container: #a7978d;
+  --color-secondary-container: #fddfab;
+  --color-on-secondary-fixed-variant: #57441e;
+  --color-secondary-fixed: #fddfab;
+  --color-secondary-fixed-dim: #dfc392;
+  --color-secondary: #715b33;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-secondary-fixed: #271900;
+
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-headline-xl: "Playfair Display", Georgia, serif;
+  --font-headline-lg: "Playfair Display", Georgia, serif;
+  --font-headline-md: "Playfair Display", Georgia, serif;
+  --font-headline-sm: "Playfair Display", Georgia, serif;
+  --font-body-lg: "Inter", system-ui, sans-serif;
+  --font-body-md: "Inter", system-ui, sans-serif;
+  --font-body-sm: "Inter", system-ui, sans-serif;
+  --font-label-lg: "Inter", system-ui, sans-serif;
+  --font-label-md: "Inter", system-ui, sans-serif;
+  --font-label-sm: "Inter", system-ui, sans-serif;
+  --font-numeric-data: "Inter", system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #fcf9f3;
+    color: #1c1c18;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1c4bc;
+  border-radius: 9999px;
+}
+
+/* Custom typographic utility classes matching the Atelier design tokens */
+.text-headline-xl {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 40px;
+  line-height: 48px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.text-headline-lg {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.text-headline-md {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 500;
+}
+
+.text-headline-sm {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.text-body-lg {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+
+.text-body-md {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.text-body-sm {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.text-label-lg {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+.text-label-md {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.text-label-sm {
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.font-numeric-data {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ChatGPT-style Voice Orb & Acoustic Waveform Animations */
+@keyframes orbBreathing {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    border-radius: 46% 54% 48% 52% / 54% 48% 52% 46%;
+  }
+  33% {
+    transform: scale(1.08) rotate(120deg);
+    border-radius: 54% 46% 58% 42% / 46% 58% 42% 54%;
+  }
+  66% {
+    transform: scale(0.96) rotate(240deg);
+    border-radius: 42% 58% 46% 54% / 56% 44% 54% 46%;
+  }
+}
+
+@keyframes orbWaveRipple1 {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1.95);
+    opacity: 0;
+  }
+}
+
+@keyframes orbWaveRipple2 {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+@keyframes soundBarDance {
+  0%,
+  100% {
+    height: 6px;
+  }
+  50% {
+    height: 26px;
+  }
+}
+
+@keyframes transcriptionGlow {
+  0%,
+  100% {
+    border-color: rgba(223, 195, 146, 0.35);
+  }
+  50% {
+    border-color: rgba(253, 223, 171, 0.85);
+  }
+}
+
+.animate-orb-fluid {
+  animation: orbBreathing 7s ease-in-out infinite;
+}
+
+.animate-ripple-1 {
+  animation: orbWaveRipple1 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.animate-ripple-2 {
+  animation: orbWaveRipple2 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 1.2s;
+}
+
+.animate-live-border {
+  animation: transcriptionGlow 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-orb-fluid,
+  .animate-ripple-1,
+  .animate-ripple-2,
+  .animate-live-border {
+    animation: none !important;
+  }
+}
