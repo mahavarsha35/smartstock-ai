@@ -1,29 +1,44 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import {
   bulkAdjustPrices,
+  configureSupabaseCredentials,
   createProduct,
   createPurchaseOrder,
   createSupplier,
+  deleteProduct,
   getBootstrapData,
   getHealth,
   markNotificationRead,
   recordStockMovement,
   saveSettings,
+  syncLocalToSupabase,
+  testSupabaseConnection,
   updateProduct,
   updatePurchaseOrderStatus,
   updateStaffMember,
 } from './server/db.ts';
 import { queryConcierge, syncDemandForecast } from './server/gemini.ts';
 
+// Resilient .env loading
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
 const PORT = Number(process.env.PORT) || 3000;
 
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
+
+  // ==========================================================================
+  // Health & Bootstrap Endpoints
+  // ==========================================================================
 
   app.get('/api/health', async (_req, res) => {
     try {
@@ -42,6 +57,69 @@ async function startServer() {
       res.status(500).json({ error: err?.message || 'Failed to bootstrap store ledger' });
     }
   });
+
+  // ==========================================================================
+  // Supabase Configuration & Management Endpoints
+  // ==========================================================================
+
+  app.get('/api/supabase/status', async (_req, res) => {
+    try {
+      const test = await testSupabaseConnection();
+      const health = await getHealth();
+      res.json({ test, health });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to check Supabase status' });
+    }
+  });
+
+  app.post('/api/supabase/test', async (req, res) => {
+    try {
+      const { url, key } = req.body || {};
+      const result = await testSupabaseConnection(url, key);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Supabase connection test failed' });
+    }
+  });
+
+  app.post('/api/supabase/configure', async (req, res) => {
+    try {
+      const { url, key } = req.body || {};
+      if (!url || !key) {
+        res.status(400).json({ error: 'Both Supabase URL and API Key are required.' });
+        return;
+      }
+      const result = await configureSupabaseCredentials(String(url), String(key));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to configure Supabase credentials' });
+    }
+  });
+
+  app.post('/api/supabase/sync', async (_req, res) => {
+    try {
+      const result = await syncLocalToSupabase();
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to sync local data to Supabase' });
+    }
+  });
+
+  app.get('/api/supabase/schema', (_req, res) => {
+    try {
+      const schemaPath = fs.existsSync(path.resolve(process.cwd(), 'supabase', 'schema.sql'))
+        ? path.resolve(process.cwd(), 'supabase', 'schema.sql')
+        : path.resolve(__dirname, 'supabase', 'schema.sql');
+      const sql = fs.readFileSync(schemaPath, 'utf8');
+      res.type('text/plain').send(sql);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Could not read supabase/schema.sql' });
+    }
+  });
+
+  // ==========================================================================
+  // Product Endpoints
+  // ==========================================================================
 
   app.post('/api/products', async (req, res) => {
     try {
@@ -90,6 +168,19 @@ async function startServer() {
     }
   });
 
+  app.delete('/api/products/:id', async (req, res) => {
+    try {
+      const ok = await deleteProduct(req.params.id);
+      if (!ok) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+      res.json({ success: true, id: req.params.id });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to delete product' });
+    }
+  });
+
   app.post('/api/products/bulk-price', async (req, res) => {
     try {
       const percentage = Number(req.body?.percentage ?? 0);
@@ -104,6 +195,10 @@ async function startServer() {
       res.status(500).json({ error: err?.message || 'Failed to adjust catalog prices' });
     }
   });
+
+  // ==========================================================================
+  // Supplier Endpoints
+  // ==========================================================================
 
   app.post('/api/suppliers', async (req, res) => {
     try {
@@ -134,6 +229,10 @@ async function startServer() {
       res.status(500).json({ error: err?.message || 'Failed to onboard supplier' });
     }
   });
+
+  // ==========================================================================
+  // Stock Movement & Purchase Order Endpoints
+  // ==========================================================================
 
   app.post('/api/movements', async (req, res) => {
     try {
@@ -197,6 +296,10 @@ async function startServer() {
     }
   });
 
+  // ==========================================================================
+  // Notifications, Staff & Settings Endpoints
+  // ==========================================================================
+
   app.post('/api/notifications/read', async (req, res) => {
     try {
       const id = req.body?.id || 'all';
@@ -228,6 +331,10 @@ async function startServer() {
       res.status(500).json({ error: err?.message || 'Failed to save store settings' });
     }
   });
+
+  // ==========================================================================
+  // Gemini AI Endpoints
+  // ==========================================================================
 
   app.post('/api/ai/concierge', async (req, res) => {
     try {
@@ -303,15 +410,9 @@ async function startServer() {
     }
   });
 
-  app.get('/api/supabase/schema', (_req, res) => {
-    try {
-      const schemaPath = path.resolve(process.cwd(), 'supabase', 'schema.sql');
-      const sql = fs.readFileSync(schemaPath, 'utf8');
-      res.type('text/plain').send(sql);
-    } catch (err: any) {
-      res.status(500).json({ error: err?.message || 'Could not read supabase/schema.sql' });
-    }
-  });
+  // ==========================================================================
+  // Inventory Export
+  // ==========================================================================
 
   app.get('/api/export/inventory', async (req, res) => {
     try {
@@ -359,6 +460,10 @@ async function startServer() {
     }
   });
 
+  // ==========================================================================
+  // Vite Middleware / Static Serve
+  // ==========================================================================
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -366,7 +471,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
+    const distDir = path.resolve(__dirname, 'dist');
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));

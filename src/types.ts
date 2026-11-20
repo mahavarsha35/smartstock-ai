@@ -176,6 +176,8 @@ export interface DbHealth {
   supabaseConfigured: boolean;
   geminiConfigured: boolean;
   lastSyncedAt: string;
+  supabaseError?: string;
+  supabaseUrl?: string;
 }
 
 export interface BootstrapData {

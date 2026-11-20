@@ -30,6 +30,84 @@ export function SettingsView({
   const [schemaModalOpen, setSchemaModalOpen] = useState(false);
   const [schemaSql, setSchemaSql] = useState('');
 
+  // Supabase Configuration State
+  const [supabaseUrl, setSupabaseUrl] = useState(health.supabaseUrl || '');
+  const [supabaseKey, setSupabaseKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [testingSupabase, setTestingSupabase] = useState(false);
+  const [savingSupabase, setSavingSupabase] = useState(false);
+  const [syncingSupabase, setSyncingSupabase] = useState(false);
+  const [supabaseTestFeedback, setSupabaseTestFeedback] = useState<{
+    ok: boolean;
+    status: string;
+    message: string;
+    missingTables?: string[];
+    rowCounts?: Record<string, number>;
+  } | null>(null);
+
+  const handleTestSupabase = async () => {
+    setTestingSupabase(true);
+    setSupabaseTestFeedback(null);
+    try {
+      const res = await api.testSupabase(supabaseUrl.trim() || undefined, supabaseKey.trim() || undefined);
+      setSupabaseTestFeedback(res);
+      if (res.ok) {
+        onNotify('Supabase connected successfully! All 7 tables verified.', 'success');
+      } else if (res.status === 'missing_tables') {
+        onNotify('Connected, but tables are missing. Please run schema.sql in Supabase SQL editor.', 'info');
+      } else {
+        onNotify(res.message, 'error');
+      }
+    } catch (err: any) {
+      setSupabaseTestFeedback({
+        ok: false,
+        status: 'error',
+        message: err?.message || 'Connection test failed',
+      });
+      onNotify(err?.message || 'Connection test failed', 'error');
+    } finally {
+      setTestingSupabase(false);
+    }
+  };
+
+  const handleSaveSupabase = async () => {
+    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
+      onNotify('Please enter both Supabase Project URL and Key.', 'error');
+      return;
+    }
+    setSavingSupabase(true);
+    try {
+      const res = await api.configureSupabase(supabaseUrl.trim(), supabaseKey.trim());
+      setSupabaseTestFeedback(res.test);
+      if (res.ok) {
+        onNotify('Supabase credentials saved and connected! Backend switched to cloud database.', 'success');
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        onNotify(res.message, 'info');
+      }
+    } catch (err: any) {
+      onNotify(err?.message || 'Failed to save Supabase credentials', 'error');
+    } finally {
+      setSavingSupabase(false);
+    }
+  };
+
+  const handleSyncSupabase = async () => {
+    setSyncingSupabase(true);
+    try {
+      const res = await api.syncSupabase();
+      if (res.ok) {
+        onNotify(res.message, 'success');
+      } else {
+        onNotify(res.message, 'error');
+      }
+    } catch (err: any) {
+      onNotify(err?.message || 'Sync failed', 'error');
+    } finally {
+      setSyncingSupabase(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     await onSaveSettings(draft);
@@ -368,7 +446,7 @@ export function SettingsView({
           {/* 7. Data & Supabase PostgreSQL Integration Status */}
           <section
             id="settings-backups"
-            className="bg-[#251b14] text-[#fcf9f3] rounded-3xl p-6 space-y-4 shadow-md"
+            className="bg-[#251b14] text-[#fcf9f3] rounded-3xl p-6 space-y-6 shadow-md"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -376,7 +454,7 @@ export function SettingsView({
                   7. Data Persistence &amp; Supabase PostgreSQL
                 </span>
                 <h2 className="font-serif text-xl text-white mt-0.5">
-                  Database &amp; Backend Storage Status
+                  Cloud Database &amp; Backend Storage Integration
                 </h2>
               </div>
               <span
@@ -387,35 +465,169 @@ export function SettingsView({
                 }`}
               >
                 {health.storageMode === 'supabase'
-                  ? 'Supabase PostgreSQL Live'
-                  : 'Local Persistent Ledger Active'}
+                  ? '● Supabase PostgreSQL Live'
+                  : '○ Local Persistent Ledger Active'}
               </span>
             </div>
 
             <p className="text-xs text-[#d5c3b8] leading-relaxed">
               {health.storageMode === 'supabase'
-                ? 'All products, suppliers, stock movements, purchase orders, and store settings are persisted in your Supabase PostgreSQL database.'
-                : 'Your changes are persisted locally in data/smartstock-db.json. To switch to cloud PostgreSQL, run the bundled supabase/schema.sql script in your Supabase SQL Editor and configure SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY in your environment Secrets.'}
+                ? 'All products, suppliers, stock movements, purchase orders, notifications, and store settings are persisted in your cloud Supabase PostgreSQL database.'
+                : 'Your changes are currently persisted locally in data/smartstock-db.json. Connect your Supabase project below to enable high-availability cloud database storage.'}
             </p>
 
-            <div className="flex flex-wrap items-center gap-2.5 pt-2">
+            {health.supabaseError && (
+              <div className="p-3.5 rounded-2xl bg-[#5c2a1e] border border-[#a84d3b] text-xs text-[#ffd2cc]">
+                <strong className="font-semibold block mb-0.5">Supabase Connection Warning:</strong>
+                {health.supabaseError}. Running on local ledger fallback.
+              </div>
+            )}
+
+            {/* Supabase Connection Credentials Form */}
+            <div className="p-5 rounded-2xl bg-[#34271f] border border-[#4d3c32] space-y-4">
+              <h3 className="text-sm font-semibold text-[#fddfab] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">key</span>
+                Supabase Connection Settings
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#d5c3b8] mb-1">
+                    Supabase Project URL
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://xyzcompany.supabase.co"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#251b14] border border-[#4d3c32] text-xs text-white placeholder-[#78665a] focus:outline-hidden focus:border-[#fddfab]"
+                  />
+                  <span className="text-[10px] text-[#9a8678] mt-1 block">
+                    Found in Supabase Dashboard → Project Settings → API → Project URL
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#d5c3b8] mb-1">
+                    Supabase API Key (service_role or anon)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKey ? 'text' : 'password'}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      value={supabaseKey}
+                      onChange={(e) => setSupabaseKey(e.target.value)}
+                      className="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-[#251b14] border border-[#4d3c32] text-xs text-white placeholder-[#78665a] focus:outline-hidden focus:border-[#fddfab] font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9a8678] hover:text-white cursor-pointer text-xs"
+                    >
+                      {showKey ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-[#9a8678] mt-1 block">
+                    service_role secret key recommended for backend, or anon public key
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestSupabase}
+                  disabled={testingSupabase}
+                  className="px-4 py-2 rounded-xl bg-[#4d3c32] text-white text-xs font-semibold hover:bg-[#5f4b3f] disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">sync</span>
+                  {testingSupabase ? 'Testing...' : 'Test Connection'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSupabase}
+                  disabled={savingSupabase}
+                  className="px-4 py-2 rounded-xl bg-[#fddfab] text-[#251b14] text-xs font-semibold hover:bg-[#dfc392] disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">save</span>
+                  {savingSupabase ? 'Connecting...' : 'Save & Connect to Supabase'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncSupabase}
+                  disabled={syncingSupabase}
+                  className="px-4 py-2 rounded-xl bg-[#3b3028] text-[#d5c3b8] text-xs font-semibold hover:bg-[#4e453f] hover:text-white disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                  title="Upload all local catalog, suppliers, and ledger items into Supabase"
+                >
+                  <span className="material-symbols-outlined text-[16px]">cloud_upload</span>
+                  {syncingSupabase ? 'Syncing...' : 'Sync Local Data to Supabase'}
+                </button>
+              </div>
+
+              {/* Live Test Feedback Banner */}
+              {supabaseTestFeedback && (
+                <div
+                  className={`p-3.5 rounded-xl text-xs space-y-1.5 ${
+                    supabaseTestFeedback.ok
+                      ? 'bg-[#273a1c] border border-[#4e7438] text-[#dbe7cb]'
+                      : supabaseTestFeedback.status === 'missing_tables'
+                      ? 'bg-[#473418] border border-[#85612e] text-[#fddfab]'
+                      : 'bg-[#5c2a1e] border border-[#a84d3b] text-[#ffd2cc]'
+                  }`}
+                >
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">
+                      {supabaseTestFeedback.ok
+                        ? 'check_circle'
+                        : supabaseTestFeedback.status === 'missing_tables'
+                        ? 'warning'
+                        : 'error'}
+                    </span>
+                    {supabaseTestFeedback.message}
+                  </div>
+                  {supabaseTestFeedback.rowCounts && Object.keys(supabaseTestFeedback.rowCounts).length > 0 && (
+                    <div className="text-[11px] opacity-90 pt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono">
+                      {Object.entries(supabaseTestFeedback.rowCounts).map(([table, count]) => (
+                        <span key={table}>
+                          {table}: <strong>{count}</strong> rows
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {supabaseTestFeedback.missingTables && supabaseTestFeedback.missingTables.length > 0 && (
+                    <div className="text-[11px] pt-1">
+                      Run the SQL script using the <strong>View Supabase SQL Schema</strong> button below to provision missing tables.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions & Utilities */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={handleOpenSchema}
-                className="px-4 py-2 rounded-xl bg-[#fddfab] text-[#251b14] text-xs font-semibold hover:bg-[#dfc392] cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#fddfab] text-[#251b14] text-xs font-semibold hover:bg-[#dfc392] cursor-pointer flex items-center gap-1.5"
               >
+                <span className="material-symbols-outlined text-[16px]">terminal</span>
                 View Supabase SQL Schema
               </button>
               <a
                 href="/api/export/inventory?format=csv"
-                className="px-4 py-2 rounded-xl bg-[#3b3028] text-[#fcf9f3] text-xs font-semibold hover:bg-[#4e453f]"
+                className="px-4 py-2 rounded-xl bg-[#3b3028] text-[#fcf9f3] text-xs font-semibold hover:bg-[#4e453f] flex items-center gap-1.5"
               >
+                <span className="material-symbols-outlined text-[16px]">download</span>
                 Export CSV Ledger
               </a>
               <a
                 href="/api/export/inventory?format=json"
-                className="px-4 py-2 rounded-xl bg-[#3b3028] text-[#fcf9f3] text-xs font-semibold hover:bg-[#4e453f]"
+                className="px-4 py-2 rounded-xl bg-[#3b3028] text-[#fcf9f3] text-xs font-semibold hover:bg-[#4e453f] flex items-center gap-1.5"
               >
+                <span className="material-symbols-outlined text-[16px]">data_object</span>
                 Download JSON Snapshot
               </a>
             </div>

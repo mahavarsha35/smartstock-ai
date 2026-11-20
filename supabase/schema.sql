@@ -1,5 +1,14 @@
--- SmartStock AI — Supabase PostgreSQL Schema
--- Run this SQL script in your Supabase project's SQL Editor to provision all tables.
+-- ============================================================================
+-- SmartStock AI — Supabase PostgreSQL Production Schema
+-- ============================================================================
+-- Instructions:
+-- 1. Open your Supabase Dashboard: https://supabase.com/dashboard
+-- 2. Select your project and navigate to the "SQL Editor" in the left sidebar.
+-- 3. Click "New Query", paste the entire contents of this file, and click "Run".
+-- 4. Copy your Project URL & service_role (or anon) key from:
+--    Project Settings > API
+-- 5. Add them to your .env file or configure them in the SmartStock AI Settings tab!
+-- ============================================================================
 
 create extension if not exists "pgcrypto";
 
@@ -133,7 +142,69 @@ create table if not exists public.store_settings (
   updated_at timestamptz not null default now()
 );
 
+-- Performance Indexes
 create index if not exists idx_products_sku on public.products (sku);
 create index if not exists idx_products_category on public.products (category);
+create index if not exists idx_products_supplier_id on public.products (supplier_id);
 create index if not exists idx_movements_created_at on public.stock_movements (created_at desc);
 create index if not exists idx_purchase_orders_status on public.purchase_orders (status);
+create index if not exists idx_notifications_read on public.notifications (read);
+
+-- ============================================================================
+-- Row Level Security (RLS) Setup
+-- ============================================================================
+alter table if exists public.suppliers enable row level security;
+alter table if exists public.products enable row level security;
+alter table if exists public.stock_movements enable row level security;
+alter table if exists public.purchase_orders enable row level security;
+alter table if exists public.notifications enable row level security;
+alter table if exists public.staff_members enable row level security;
+alter table if exists public.store_settings enable row level security;
+
+-- Idempotent RLS Policies: Allow backend service role & anon operations
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'suppliers' and policyname = 'Allow all operations on suppliers') then
+    create policy "Allow all operations on suppliers" on public.suppliers for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'products' and policyname = 'Allow all operations on products') then
+    create policy "Allow all operations on products" on public.products for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'stock_movements' and policyname = 'Allow all operations on stock_movements') then
+    create policy "Allow all operations on stock_movements" on public.stock_movements for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'purchase_orders' and policyname = 'Allow all operations on purchase_orders') then
+    create policy "Allow all operations on purchase_orders" on public.purchase_orders for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'notifications' and policyname = 'Allow all operations on notifications') then
+    create policy "Allow all operations on notifications" on public.notifications for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'staff_members' and policyname = 'Allow all operations on staff_members') then
+    create policy "Allow all operations on staff_members" on public.staff_members for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'store_settings' and policyname = 'Allow all operations on store_settings') then
+    create policy "Allow all operations on store_settings" on public.store_settings for all using (true) with check (true);
+  end if;
+end $$;
+
+-- Enable Realtime publication so clients can listen to live table events
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table 
+      public.products, 
+      public.suppliers, 
+      public.stock_movements, 
+      public.purchase_orders, 
+      public.notifications;
+  exception when others then
+    -- Table already in publication or publication not configured
+    null;
+  end;
+end $$;

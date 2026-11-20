@@ -166,4 +166,49 @@ export const api = {
     if (!res.ok) throw new Error('Unable to fetch Supabase SQL schema.');
     return res.text();
   },
+
+  getSupabaseStatus: () =>
+    apiRequest<{
+      test: {
+        ok: boolean;
+        status: string;
+        message: string;
+        url?: string;
+        missingTables: string[];
+        tablesFound: string[];
+        rowCounts: Record<string, number>;
+      };
+      health: any;
+    }>('/api/supabase/status'),
+
+  testSupabase: (url?: string, key?: string) =>
+    apiRequest<{
+      ok: boolean;
+      status: string;
+      message: string;
+      missingTables: string[];
+      tablesFound: string[];
+      rowCounts: Record<string, number>;
+    }>('/api/supabase/test', {
+      method: 'POST',
+      body: JSON.stringify({ url, key }),
+    }),
+
+  configureSupabase: (url: string, key: string) =>
+    apiRequest<{
+      ok: boolean;
+      message: string;
+      test: any;
+    }>('/api/supabase/configure', {
+      method: 'POST',
+      body: JSON.stringify({ url, key }),
+    }),
+
+  syncSupabase: () =>
+    apiRequest<{
+      ok: boolean;
+      message: string;
+    }>('/api/supabase/sync', {
+      method: 'POST',
+    }),
 };
