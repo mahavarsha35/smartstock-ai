@@ -48,7 +48,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-const DATA_DIR = fs.existsSync(path.resolve(process.cwd(), 'data'))
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DATA_DIR = isServerless
+  ? path.resolve('/tmp', 'smartstock-data')
+  : fs.existsSync(path.resolve(process.cwd(), 'data'))
   ? path.resolve(process.cwd(), 'data')
   : path.resolve(PROJECT_ROOT, 'data');
 const LOCAL_DB_PATH = path.join(DATA_DIR, 'smartstock-db.json');
@@ -115,24 +118,35 @@ export function getSupabaseClient(forceRefresh = false): SupabaseClient | null {
 // Local DB Helpers (Fallback Ledger)
 // ============================================================================
 
+let inMemoryFallback: LocalDbSchema | null = null;
+
 export function readLocalDb(): LocalDbSchema {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(LOCAL_DB_PATH)) {
-    const initial: LocalDbSchema = {
-      products: INITIAL_PRODUCTS,
-      suppliers: INITIAL_SUPPLIERS,
-      movements: INITIAL_MOVEMENTS,
-      purchaseOrders: INITIAL_PURCHASE_ORDERS,
-      notifications: INITIAL_NOTIFICATIONS,
-      staff: INITIAL_STAFF,
-      settings: INITIAL_SETTINGS,
-    };
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(initial, null, 2), 'utf8');
-    return initial;
+  if (inMemoryFallback) {
+    return inMemoryFallback;
   }
   try {
+    if (!fs.existsSync(DATA_DIR)) {
+      try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      } catch {}
+    }
+    if (!fs.existsSync(LOCAL_DB_PATH)) {
+      const initial: LocalDbSchema = {
+        products: INITIAL_PRODUCTS,
+        suppliers: INITIAL_SUPPLIERS,
+        movements: INITIAL_MOVEMENTS,
+        purchaseOrders: INITIAL_PURCHASE_ORDERS,
+        notifications: INITIAL_NOTIFICATIONS,
+        staff: INITIAL_STAFF,
+        settings: INITIAL_SETTINGS,
+      };
+      try {
+        fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(initial, null, 2), 'utf8');
+      } catch {
+        inMemoryFallback = initial;
+      }
+      return initial;
+    }
     const raw = fs.readFileSync(LOCAL_DB_PATH, 'utf8');
     return JSON.parse(raw) as LocalDbSchema;
   } catch {
@@ -145,16 +159,21 @@ export function readLocalDb(): LocalDbSchema {
       staff: INITIAL_STAFF,
       settings: INITIAL_SETTINGS,
     };
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(fallback, null, 2), 'utf8');
+    inMemoryFallback = fallback;
     return fallback;
   }
 }
 
 export function writeLocalDb(db: LocalDbSchema): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  inMemoryFallback = db;
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), 'utf8');
+  } catch (err) {
+    // In serverless / read-only filesystem environments (Vercel), in-memory holds the update
   }
-  fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), 'utf8');
 }
 
 // ============================================================================
